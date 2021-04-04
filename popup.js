@@ -5,7 +5,7 @@ canvasCtx = canvas.getContext("2d");
 var WIDTH = 500;
 var HEIGHT = 500;
 var freqMags=[];
-var adjPow=1;
+var adjPow=4.7;
 
 var sldL=document.getElementById('powSldL');
 var sld=document.getElementById('powSld');
