@@ -2,6 +2,11 @@ canvas = document.getElementById('visualiser');
 canvasCtx = canvas.getContext("2d");
   canvasCtx.fillRect(0, 0, WIDTH, HEIGHT);
     canvasCtx.fillStyle = 'rgb(0,0,0)';
+	
+	function lerp(a,b,t) {
+		return ((1 - (t)) * (a) + (t) * (b) );
+		}
+	
 var WIDTH = 500;
 var HEIGHT = 500;
 var freqMags=[];
@@ -12,7 +17,7 @@ var sld=document.getElementById('powSld');
 
 sld.oninput= function(){
 	adjPow=sld.value;
-	sldL.innerText=sld.value;
+	sldL.innerText=sld.valueAsNumber.toFixed(3);
 }
 
 var port = chrome.extension.connect();
@@ -27,82 +32,68 @@ port.onMessage.addListener(function(msg) {
 
 
 function drawLine (data,context) {
-	freqMags=[];
-  //canvasCtx.fillRect(0, 0, WIDTH, HEIGHT);
- // canvasCtx.fillStyle = 'rgb(242, 242, 242)';
-
- // canvasCtx.lineWidth = 1;
-// canvasCtx.beginPath();
-          //  context.save();  
+	var freqs=[];
+	 var mags=[];
+	 var magsSort=[];
+	 
 			 let mx=data[0].y;
   for(let i = 1; i <data.length; i++) {
 	  mx=(data[i].y>mx)?data[i].y:mx;
   }
-           /*context.lineWidth = width;  
-           context.strokeStyle = color;  
-           context.fillStyle = color;  */
+  
 				var scaleY=HEIGHT/mx;
-				//var scaleX=WIDTH/data[data.length-1].x;
-      //   context.beginPath();  
- 
-   
+
             for (var n = 0; n < data.length; n++) {  
                 var point = data[n];  
-				//var s_x=point.x*scaleX;
 				var s_y=HEIGHT-point.y*scaleY;
-				/*	if (n==0){
-						context.moveTo(0,s_y); 
-					}	*/
-					
-                // draw segment  
-               /* context.lineTo(s_x,s_y);  
-                context.stroke();  
-                context.closePath();  */
-   
-              //  position for next segment  
-             /*  context.beginPath();  
-              context.moveTo(s_x,s_y);  */
-				freqMags.push({f:point.x, m:s_y});
+				freqs.push(point.x);
+				mags.push(s_y);
+				magsSort.push(s_y);
             }
 			
-        //  context.restore();  
-			//var curr_x_f;
 			var curr_y_f;
-			//var xf;
 			var yf;
 			
-				for (let y = 0; y < HEIGHT; y++) {  //freq axis
-				let mxf=freqMags[freqMags.length-1].f;
-					 curr_y_f=(mxf/HEIGHT)*(HEIGHT-y);
-					curr_y_f= curr_y_f/mxf; //0 to 1
-					 curr_y_f= Math.pow(curr_y_f,adjPow)*mxf;
-					 
-					  yf=freqMags[Math.floor(curr_y_f/step)].m/HEIGHT;
-			
-		       /* for (let x= 0; x < WIDTH; x++) { //time axis 
+			var eqPows=[];
+						
+				var currPw=adjPow;
 
-					 /*curr_x_f=(curr_y_f)*(1-x/WIDTH);
-					 xf=freqMags[Math.floor(curr_x_f/step)].m;
-	
-					let max_X=Math.max(xf,yf);
-					let out =(max_X==0)?1:(Math.min(xf,yf)/max_X);
-					
-					//canvasCtx.fillStyle = "rgb("+out+","+out+","+out+")";
-					canvasCtx.fillStyle = 'hsl('+ (240*(1-out)) +',100%,50%)';
-					canvasCtx.fillRect( x, y, 1, 1 );*/
-			
+		magsSort.sort(function(a, b) {return b-a;});
+		let topAvgs=[0.5*(magsSort[0]+magsSort[1]),(1/3)*(magsSort[0]+magsSort[1]+magsSort[2])];
 				
+				for (let i = 0, len= mags.length; i < len; i++){
+					if(i==0){
+						let pw=lerp(adjPow,0.001,(0.5*(mags[i]+mags[i+1]))/topAvgs[0]);
+						currPw=(pw<currPw)?pw:currPw;
+						eqPows[i]=currPw;
+					}else if (i== mags.length-1){
+						let pw=lerp(adjPow,0.001,(0.5*(mags[i]+mags[i-1]))/topAvgs[0]);
+						currPw=(pw<currPw)?pw:currPw;
+						eqPows[i]=currPw;
+					}else{
+						let pw=lerp(adjPow,0.001,((1/3)*(mags[i-1]+mags[i]+mags[i+1]))/topAvgs[1]);
+						currPw=(pw<currPw)?pw:currPw;
+						eqPows[i]=currPw;
+					}				
+				}
+				
+				for (let y = 0; y < HEIGHT; y++) {  //freq axis
+				let mxf=freqs[freqs.length-1];
+					 curr_y_f=(mxf/HEIGHT)*(HEIGHT-y);
+				let fEl=Math.floor(curr_y_f/step);
+			curr_y_f= curr_y_f/mxf; //0 to 1
+					 curr_y_f= Math.pow(curr_y_f,eqPows[fEl])*mxf;
+					 
+					  yf=mags[Math.floor(curr_y_f/step)]/HEIGHT;
 
 
-			/*if(yf==0){
-				canvasCtx.fillStyle = 'rgb(0,0,0)';
-			}else{*/
-			//	canvasCtx.fillStyle = 'hsl('+ (240*(yf)) +',100%,45%)';
-				canvasCtx.fillStyle = 'hsl('+ (67.5*(yf)) +','+Math.pow(yf,1/adjPow)*100+'%,'+(1-Math.pow(yf,1/adjPow))*100+'%)';
-			//}
+				canvasCtx.fillStyle = 'hsl('+ (67.5*(yf)) +','+Math.pow(yf,1/eqPows[fEl])*100+'%,'+(1-Math.pow(yf,1/eqPows[fEl]))*100+'%)';
+
 					canvasCtx.fillRect( WIDTH-1, y, 1, 1 );
 				
 				}
+				
+
 								// shift everything to the left:
 var imageData = canvasCtx.getImageData(1, 0, WIDTH-1, HEIGHT);
 canvasCtx.putImageData(imageData, 0, 0);

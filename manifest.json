@@ -3,7 +3,7 @@
 
   "manifest_version": 2,
   "name": "Audio Visualiser",
-  "version": "2021.4",
+  "version": "2021.10",
   "permissions": [
     "tabCapture",
     "activeTab",
