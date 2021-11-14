@@ -6,6 +6,13 @@ canvasCtx = canvas.getContext("2d");
 	function lerp(a,b,t) {
 		return ((1 - (t)) * (a) + (t) * (b) );
 		}
+		
+		function Hz_to_midi_n(f){
+			return 12*Math.log2(f/440)+49;
+		}	
+		function midi_n_to_Hz(n){
+			return Math.pow(2,(n-49)/12)*440;
+		}
 	
 var WIDTH = 500;
 var HEIGHT = 500;
@@ -34,7 +41,6 @@ port.onMessage.addListener(function(msg) {
 function drawLine (data,context) {
 	var freqs=[];
 	 var mags=[];
-	 var magsSort=[];
 	 
 			 let mx=data[0].y;
   for(let i = 1; i <data.length; i++) {
@@ -42,52 +48,81 @@ function drawLine (data,context) {
   }
   
 				var scaleY=HEIGHT/mx;
-
-            for (var n = 0; n < data.length; n++) {  
+				var min_f=0;
+				var max_f=0;
+				var d_l=data.length;
+            for (var n = 0; n < d_l; n++) {  
                 var point = data[n];  
 				var s_y=HEIGHT-point.y*scaleY;
 				freqs.push(point.x);
+				min_f=(point.x<min_f || min_f==0)?point.x:min_f;
+				max_f=(point.x>max_f)?point.x:max_f;
 				mags.push(s_y);
-				magsSort.push(s_y);
             }
 			
-			var curr_y_f;
-			var yf;
+			var min_n=Hz_to_midi_n(min_f);
+			var max_n=Hz_to_midi_n(max_f);
+			var n_step=(max_n-min_n)/(HEIGHT-((data[0].x==0)?2:1));
 			
-			var eqPows=[];
+			var n_Hz=midi_n_to_Hz(min_n);
+			var equal_n=(data[0].x==0)?[0,n_Hz]:[n_Hz];
+			var n_s=min_n;
+			
+			while (n_Hz<=max_f){
+				n_s+=n_step;
+				n_Hz=midi_n_to_Hz(n_s);
+				equal_n.push(n_Hz);
+			}
+			
+			var n_l=0;
+			var n_h=0;
+			
+			var eq_nl=equal_n.length;
+			var f_l=freqs.length;
+			
+			var equal_n_m=[];
+			
+			for (let i=0; i<eq_nl; i++){
+				equal_n_m[i]=0;
+				var n=equal_n[i];
+				var breaker=false;
+				while((n_l < f_l && n_h<f_l) && !breaker){
+					var l_f=freqs[n_l];
+					var h_f=freqs[n_h];
+					
+					if(l_f==n){
+						equal_n_m[i]=mags[n_l];
 						
-				var currPw=adjPow;
-
-		magsSort.sort(function(a, b) {return b-a;});
-		let topAvgs=[0.5*(magsSort[0]+magsSort[1]),(1/3)*(magsSort[0]+magsSort[1]+magsSort[2])];
-				
-				for (let i = 0, len= mags.length; i < len; i++){
-					if(i==0){
-						let pw=lerp(adjPow,0.001,(0.5*(mags[i]+mags[i+1]))/topAvgs[0]);
-						currPw=(pw<currPw)?pw:currPw;
-						eqPows[i]=currPw;
-					}else if (i== mags.length-1){
-						let pw=lerp(adjPow,0.001,(0.5*(mags[i]+mags[i-1]))/topAvgs[0]);
-						currPw=(pw<currPw)?pw:currPw;
-						eqPows[i]=currPw;
-					}else{
-						let pw=lerp(adjPow,0.001,((1/3)*(mags[i-1]+mags[i]+mags[i+1]))/topAvgs[1]);
-						currPw=(pw<currPw)?pw:currPw;
-						eqPows[i]=currPw;
-					}				
+							breaker=true;
+					}
+					if(!breaker){
+						n_h=(n_l==n_h)?n_l+1:n_h;
+						if(n_h>=f_l){
+							equal_n_m[i]=mags[f_l-1];
+							breaker=true;
+						}else{
+							h_f=freqs[n_h];
+						}
+						if(l_f<n && h_f>n){
+							let diff=h_f-l_f;
+							equal_n_m[i]=lerp(mags[n_l],mags[n_h],((diff==0)?0:(n-l_f)/diff));
+							n_h=n_l;
+							breaker=true;
+						}else{
+							n_l++;
+						}
+					}
 				}
-				
+			}
+			
+			
+			
 				for (let y = 0; y < HEIGHT; y++) {  //freq axis
-				let mxf=freqs[freqs.length-1];
-					 curr_y_f=(mxf/HEIGHT)*(HEIGHT-y);
-				let fEl=Math.floor(curr_y_f/step);
-			curr_y_f= curr_y_f/mxf; //0 to 1
-					 curr_y_f= Math.pow(curr_y_f,eqPows[fEl])*mxf;
-					 
-					  yf=mags[Math.floor(curr_y_f/step)]/HEIGHT;
+				
+					  yf=equal_n_m[y]/HEIGHT;
 
 
-				canvasCtx.fillStyle = 'hsl('+ (67.5*(yf)) +','+Math.pow(yf,1/eqPows[fEl])*100+'%,'+(1-Math.pow(yf,1/eqPows[fEl]))*100+'%)';
+				canvasCtx.fillStyle = 'hsl('+ (67.5*(yf)) +','+Math.pow(yf,1/adjPow)*100+'%,'+(1-Math.pow(yf,1/adjPow))*100+'%)';
 
 					canvasCtx.fillRect( WIDTH-1, y, 1, 1 );
 				
