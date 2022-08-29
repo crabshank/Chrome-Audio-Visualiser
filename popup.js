@@ -124,7 +124,7 @@ function drawLine (data,context) {
 
 				canvasCtx.fillStyle = 'hsl('+ (67.5*(yf)) +','+Math.pow(yf,1/adjPow)*100+'%,'+(1-Math.pow(yf,1/adjPow))*100+'%)';
 
-					canvasCtx.fillRect( WIDTH-1, y, 1, 1 );
+					canvasCtx.fillRect( WIDTH-1, (HEIGHT-1)-y, 1, 1 );
 				
 				}
 				
